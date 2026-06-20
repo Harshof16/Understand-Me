@@ -1,39 +1,57 @@
-import React from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import React, { useMemo } from "react";
+import { StyleSheet, Text } from "react-native";
+import { AnimatedPressable } from "./AnimatedPressable";
+import { radius, spacing, useTheme, ThemeColors, Typography } from "../theme";
 
 type Props = {
   label: string;
   onPress: () => void;
   disabled?: boolean;
-  variant?: "primary" | "secondary";
+  variant?: "primary" | "secondary" | "ghost";
 };
 
 export function Button({ label, onPress, disabled, variant = "primary" }: Props) {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       disabled={disabled}
       style={[
         styles.base,
-        variant === "secondary" ? styles.secondary : styles.primary,
+        variant === "secondary" && styles.secondary,
+        variant === "ghost" && styles.ghost,
         disabled && styles.disabled,
       ]}
     >
-      <Text style={[styles.label, variant === "secondary" && styles.secondaryLabel]}>{label}</Text>
-    </Pressable>
+      <Text
+        style={[
+          styles.label,
+          variant === "secondary" && styles.secondaryLabel,
+          variant === "ghost" && styles.ghostLabel,
+        ]}
+      >
+        {label}
+      </Text>
+    </AnimatedPressable>
   );
 }
 
-const styles = StyleSheet.create({
-  base: {
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: "center",
-    marginTop: 8,
-  },
-  primary: { backgroundColor: "#5B4FE5" },
-  secondary: { backgroundColor: "#EFEDFC" },
-  disabled: { opacity: 0.4 },
-  label: { color: "#fff", fontSize: 16, fontWeight: "600" },
-  secondaryLabel: { color: "#5B4FE5" },
-});
+function createStyles(colors: ThemeColors, typography: Typography) {
+  return StyleSheet.create({
+    base: {
+      paddingVertical: 14,
+      borderRadius: radius.md,
+      alignItems: "center",
+      marginTop: spacing.sm,
+      backgroundColor: colors.primary,
+    },
+    secondary: { backgroundColor: colors.primaryLight },
+    ghost: { backgroundColor: "transparent" },
+    disabled: { opacity: 0.4 },
+    label: { ...typography.subheading, color: colors.textOnPrimary },
+    secondaryLabel: { color: colors.primary },
+    ghostLabel: { color: colors.primary },
+  });
+}

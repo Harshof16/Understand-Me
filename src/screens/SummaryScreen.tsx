@@ -1,5 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { FlatList, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   addInsightSnapshot,
@@ -9,12 +10,19 @@ import {
 } from "../storage/repository";
 import type { InsightSnapshot } from "../types";
 import { Button } from "../components/Button";
+import { Card } from "../components/Card";
+import { FadeIn } from "../components/FadeIn";
+import { ProgressBar } from "../components/ProgressBar";
+import { Spinner } from "../components/Spinner";
+import { EmptyState } from "../components/illustrations/EmptyState";
+import { spacing, useTheme, ThemeColors, Typography } from "../theme";
 
 const MIN_ENTRIES_FOR_SUMMARY = 5;
 
 // Stub: replace with a real Claude API call once there's a backend proxy to hold the key.
 // This placeholder keeps the data flow (entries in -> snapshot out) wired up end to end.
 async function generateStubSummary(moodCount: number, journalCount: number): Promise<string> {
+  await new Promise((resolve) => setTimeout(resolve, 900));
   return (
     `[AI summary placeholder] Based on ${moodCount} mood logs and ${journalCount} journal entries, ` +
     `this is where Claude will identify your recurring pain points and emotional patterns once the ` +
@@ -23,6 +31,9 @@ async function generateStubSummary(moodCount: number, journalCount: number): Pro
 }
 
 export default function SummaryScreen() {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+
   const [snapshots, setSnapshots] = useState<InsightSnapshot[]>([]);
   const [entryCount, setEntryCount] = useState(0);
   const [generating, setGenerating] = useState(false);
@@ -43,6 +54,7 @@ export default function SummaryScreen() {
   );
 
   const hasEnoughData = entryCount >= MIN_ENTRIES_FOR_SUMMARY;
+  const progress = Math.min(entryCount / MIN_ENTRIES_FOR_SUMMARY, 1);
 
   async function handleGenerate() {
     setGenerating(true);
@@ -69,51 +81,86 @@ export default function SummaryScreen() {
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View style={styles.form}>
-          <Text style={styles.title}>Your Pain Points & Patterns</Text>
-          {hasEnoughData ? (
-            <Text style={styles.subtitle}>
-              You have {entryCount} logged entries. Generate a summary to see recurring patterns.
-            </Text>
-          ) : (
-            <Text style={styles.subtitle}>
-              Log at least {MIN_ENTRIES_FOR_SUMMARY} mood/journal entries ({entryCount}/
-              {MIN_ENTRIES_FOR_SUMMARY} so far) before generating a summary — too little data gives
-              unreliable insights.
-            </Text>
-          )}
-          <Button
-            label={generating ? "Generating..." : "Generate summary"}
-            onPress={handleGenerate}
-            disabled={!hasEnoughData || generating}
-          />
+          <FadeIn>
+            <Text style={styles.title}>Your pain points & patterns</Text>
+          </FadeIn>
+
+          <FadeIn delay={80}>
+            <Card style={styles.statusCard}>
+              {hasEnoughData ? (
+                <Text style={styles.subtitle}>
+                  You have {entryCount} logged entries. Generate a summary to see recurring patterns.
+                </Text>
+              ) : (
+                <>
+                  <Text style={styles.subtitle}>
+                    Log at least {MIN_ENTRIES_FOR_SUMMARY} mood/journal entries before generating a
+                    summary — too little data gives unreliable insights.
+                  </Text>
+                  <ProgressBar progress={progress} />
+                  <Text style={styles.progressLabel}>
+                    {entryCount} / {MIN_ENTRIES_FOR_SUMMARY} entries
+                  </Text>
+                </>
+              )}
+              <Button
+                label={generating ? "Generating..." : "Generate summary"}
+                onPress={handleGenerate}
+                disabled={!hasEnoughData || generating}
+              />
+              {generating && (
+                <View style={styles.generatingRow}>
+                  <Spinner />
+                  <Text style={styles.generatingText}>Analyzing your entries...</Text>
+                </View>
+              )}
+            </Card>
+          </FadeIn>
+
           <Text style={styles.sectionTitle}>Past summaries</Text>
         </View>
       }
-      renderItem={({ item }) => (
-        <View style={styles.entryCard}>
-          <Text style={styles.entryMeta}>{new Date(item.generatedAt).toLocaleString()}</Text>
-          <Text style={styles.entryText}>{item.summaryText}</Text>
-        </View>
+      renderItem={({ item, index }) => (
+        <FadeIn delay={Math.min(index, 4) * 40}>
+          <Card style={styles.entryCard} muted>
+            <View style={styles.entryHeader}>
+              <Ionicons name="sparkles" size={14} color={colors.primary} />
+              <Text style={styles.entryMeta}>{new Date(item.generatedAt).toLocaleString()}</Text>
+            </View>
+            <Text style={styles.entryText}>{item.summaryText}</Text>
+          </Card>
+        </FadeIn>
       )}
-      ListEmptyComponent={<Text style={styles.empty}>No summaries generated yet.</Text>}
+      ListEmptyComponent={<EmptyState label="No summaries generated yet." />}
     />
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 20, paddingBottom: 48 },
-  form: { marginBottom: 8 },
-  title: { fontSize: 22, fontWeight: "700", marginBottom: 8 },
-  subtitle: { fontSize: 14, color: "#555", marginBottom: 16 },
-  sectionTitle: { fontSize: 18, fontWeight: "600", marginTop: 28, marginBottom: 8 },
-  entryCard: {
-    backgroundColor: "#F7F6FE",
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 10,
-  },
-  entryMeta: { fontSize: 12, color: "#888", marginBottom: 6 },
-  entryText: { fontSize: 14, lineHeight: 20 },
-  empty: { textAlign: "center", color: "#888", marginTop: 20 },
-});
+function createStyles(colors: ThemeColors, typography: Typography) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+    form: { marginBottom: spacing.sm },
+    title: { ...typography.title, marginBottom: spacing.lg },
+    statusCard: { marginBottom: spacing.sm },
+    subtitle: { ...typography.bodyMuted, marginBottom: spacing.md },
+    progressLabel: { ...typography.caption, marginTop: spacing.sm, marginBottom: spacing.md },
+    generatingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.sm,
+      marginTop: spacing.md,
+    },
+    generatingText: { ...typography.bodyMuted },
+    sectionTitle: { ...typography.heading, marginTop: spacing.xxl, marginBottom: spacing.sm },
+    entryCard: { marginBottom: spacing.sm },
+    entryHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      marginBottom: spacing.sm,
+    },
+    entryMeta: { ...typography.caption },
+    entryText: { ...typography.body },
+  });
+}

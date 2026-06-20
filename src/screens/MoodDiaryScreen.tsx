@@ -1,14 +1,31 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { FlatList, StyleSheet, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { addMoodEntry, getMoodEntries } from "../storage/repository";
 import type { MoodEntry, MoodLevel } from "../types";
+import { AnimatedPressable } from "../components/AnimatedPressable";
 import { Button } from "../components/Button";
+import { Card } from "../components/Card";
+import { FadeIn } from "../components/FadeIn";
 import { LikertScale } from "../components/LikertScale";
+import { EmptyState } from "../components/illustrations/EmptyState";
+import { radius, spacing, useTheme, ThemeColors, Typography } from "../theme";
 
-const MOODS = ["Happy", "Calm", "Anxious", "Sad", "Frustrated", "Energized", "Tired"];
+const MOODS: { label: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { label: "Happy", icon: "happy" },
+  { label: "Calm", icon: "leaf" },
+  { label: "Anxious", icon: "pulse" },
+  { label: "Sad", icon: "rainy" },
+  { label: "Frustrated", icon: "flame" },
+  { label: "Energized", icon: "flash" },
+  { label: "Tired", icon: "bed" },
+];
 
 export default function MoodDiaryScreen() {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+
   const [entries, setEntries] = useState<MoodEntry[]>([]);
   const [selectedMood, setSelectedMood] = useState<string | null>(null);
   const [intensity, setIntensity] = useState<MoodLevel | undefined>();
@@ -55,88 +72,116 @@ export default function MoodDiaryScreen() {
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View style={styles.form}>
-          <Text style={styles.title}>How are you feeling right now?</Text>
+          <FadeIn>
+            <Text style={styles.title}>How are you feeling right now?</Text>
+          </FadeIn>
 
-          <View style={styles.moodRow}>
-            {MOODS.map((mood) => (
-              <Text
-                key={mood}
-                onPress={() => setSelectedMood(mood)}
-                style={[styles.moodChip, selectedMood === mood && styles.moodChipSelected]}
-              >
-                {mood}
-              </Text>
-            ))}
-          </View>
+          <FadeIn delay={60}>
+            <View style={styles.moodGrid}>
+              {MOODS.map((mood) => {
+                const selected = selectedMood === mood.label;
+                const tint = colors.moods[mood.label] ?? colors.primary;
+                return (
+                  <AnimatedPressable
+                    key={mood.label}
+                    onPress={() => setSelectedMood(mood.label)}
+                    style={[
+                      styles.moodChip,
+                      selected && { backgroundColor: tint, borderColor: tint },
+                    ]}
+                  >
+                    <Ionicons name={mood.icon} size={18} color={selected ? "#fff" : tint} />
+                    <Text style={[styles.moodChipText, selected && styles.moodChipTextSelected]}>
+                      {mood.label}
+                    </Text>
+                  </AnimatedPressable>
+                );
+              })}
+            </View>
+          </FadeIn>
 
-          <Text style={styles.label}>Intensity</Text>
-          <LikertScale value={intensity} onChange={(v) => setIntensity(v as MoodLevel)} />
+          <FadeIn delay={120}>
+            <Text style={styles.label}>Intensity</Text>
+            <LikertScale value={intensity} onChange={(v) => setIntensity(v as MoodLevel)} />
 
-          <Text style={styles.label}>Energy level</Text>
-          <LikertScale value={energy} onChange={(v) => setEnergy(v as MoodLevel)} />
+            <Text style={styles.label}>Energy level</Text>
+            <LikertScale value={energy} onChange={(v) => setEnergy(v as MoodLevel)} />
 
-          <Text style={styles.label}>Tags (comma separated, optional)</Text>
-          <TextInput
-            style={styles.input}
-            value={tagsInput}
-            onChangeText={setTagsInput}
-            placeholder="work, sleep, social"
-          />
+            <Text style={styles.label}>Tags (comma separated, optional)</Text>
+            <TextInput
+              style={styles.input}
+              value={tagsInput}
+              onChangeText={setTagsInput}
+              placeholder="work, sleep, social"
+              placeholderTextColor={colors.textMuted}
+            />
 
-          <Button label="Log mood" onPress={handleLog} disabled={!selectedMood || !intensity} />
+            <Button label="Log mood" onPress={handleLog} disabled={!selectedMood || !intensity} />
+          </FadeIn>
 
           <Text style={styles.sectionTitle}>Recent entries</Text>
         </View>
       }
-      renderItem={({ item }) => (
-        <View style={styles.entryCard}>
-          <Text style={styles.entryMood}>
-            {item.moodPrimary} · intensity {item.moodIntensity}
-            {item.energyRating ? ` · energy ${item.energyRating}` : ""}
-          </Text>
-          <Text style={styles.entryMeta}>{new Date(item.timestamp).toLocaleString()}</Text>
-          {item.tags.length > 0 && <Text style={styles.entryTags}>{item.tags.join(", ")}</Text>}
-        </View>
+      renderItem={({ item, index }) => (
+        <FadeIn delay={Math.min(index, 4) * 40}>
+          <Card style={styles.entryCard} muted>
+            <View style={styles.entryHeader}>
+              <Ionicons
+                name={MOODS.find((m) => m.label === item.moodPrimary)?.icon ?? "ellipse"}
+                size={16}
+                color={colors.moods[item.moodPrimary] ?? colors.primary}
+              />
+              <Text style={styles.entryMood}>
+                {item.moodPrimary} · intensity {item.moodIntensity}
+                {item.energyRating ? ` · energy ${item.energyRating}` : ""}
+              </Text>
+            </View>
+            <Text style={styles.entryMeta}>{new Date(item.timestamp).toLocaleString()}</Text>
+            {item.tags.length > 0 && <Text style={styles.entryTags}>{item.tags.join(", ")}</Text>}
+          </Card>
+        </FadeIn>
       )}
-      ListEmptyComponent={<Text style={styles.empty}>No entries yet.</Text>}
+      ListEmptyComponent={<EmptyState label="No mood entries yet. Log your first one above." />}
     />
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 20, paddingBottom: 48 },
-  form: { marginBottom: 8 },
-  title: { fontSize: 22, fontWeight: "700", marginBottom: 16 },
-  label: { fontSize: 14, fontWeight: "600", marginTop: 16, marginBottom: 8 },
-  moodRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  moodChip: {
-    borderWidth: 1,
-    borderColor: "#D9D6F5",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: "#5B4FE5",
-  },
-  moodChipSelected: { backgroundColor: "#5B4FE5", color: "#fff" },
-  input: {
-    borderWidth: 1,
-    borderColor: "#D9D6F5",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-  },
-  sectionTitle: { fontSize: 18, fontWeight: "600", marginTop: 28, marginBottom: 8 },
-  entryCard: {
-    backgroundColor: "#F7F6FE",
-    borderRadius: 10,
-    padding: 14,
-    marginBottom: 10,
-  },
-  entryMood: { fontSize: 15, fontWeight: "600" },
-  entryMeta: { fontSize: 12, color: "#888", marginTop: 4 },
-  entryTags: { fontSize: 12, color: "#5B4FE5", marginTop: 4 },
-  empty: { textAlign: "center", color: "#888", marginTop: 20 },
-});
+function createStyles(colors: ThemeColors, typography: Typography) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    content: { padding: spacing.xl, paddingBottom: spacing.xxxl },
+    form: { marginBottom: spacing.sm },
+    title: { ...typography.title, marginBottom: spacing.lg },
+    label: { ...typography.subheading, marginTop: spacing.lg, marginBottom: spacing.sm },
+    moodGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+    moodChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+      backgroundColor: colors.surface,
+    },
+    moodChipText: { fontSize: 13, fontWeight: "600", color: colors.textPrimary },
+    moodChipTextSelected: { color: "#fff" },
+    input: {
+      borderWidth: 1.5,
+      borderColor: colors.border,
+      borderRadius: 10,
+      paddingHorizontal: spacing.md,
+      paddingVertical: 10,
+      fontSize: 15,
+      backgroundColor: colors.surface,
+      color: colors.textPrimary,
+    },
+    sectionTitle: { ...typography.heading, marginTop: spacing.xxl, marginBottom: spacing.sm },
+    entryCard: { marginBottom: spacing.sm },
+    entryHeader: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+    entryMood: { ...typography.subheading },
+    entryMeta: { ...typography.caption, marginTop: spacing.xs },
+    entryTags: { fontSize: 12, color: colors.primary, marginTop: spacing.xs, fontWeight: "600" },
+  });
+}

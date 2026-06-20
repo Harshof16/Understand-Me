@@ -1,12 +1,15 @@
-import React, { useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useMemo, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ATTACHMENT_QUESTIONS, QUIZ_QUESTIONS } from "../data/quizQuestions";
 import { savePersonalityBaseline } from "../storage/repository";
 import type { AttachmentStyle, BigFiveScores, PersonalityBaseline } from "../types";
 import type { RootStackParamList } from "../navigation/types";
-import { Button } from "../components/Button";
+import { Card } from "../components/Card";
+import { FadeIn } from "../components/FadeIn";
 import { LikertScale } from "../components/LikertScale";
+import { ProgressBar } from "../components/ProgressBar";
+import { spacing, useTheme, ThemeColors, Typography } from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "PersonalityQuiz">;
 
@@ -18,20 +21,37 @@ const TRAIT_KEYS: (keyof BigFiveScores)[] = [
   "neuroticism",
 ];
 
+type Step =
+  | { kind: "trait"; id: string; prompt: string }
+  | { kind: "attachment"; id: string; prompt: string };
+
 function buildNarrativeSummary(scores: BigFiveScores, attachmentStyle: AttachmentStyle): string {
   const dominant = TRAIT_KEYS.reduce((a, b) => (scores[a] >= scores[b] ? a : b));
   return `You lean strongly toward ${dominant}, with a ${attachmentStyle} attachment style. This baseline will give your daily logs more context.`;
 }
 
 export default function PersonalityQuizScreen({ navigation }: Props) {
+  const { colors, typography } = useTheme();
+  const styles = useMemo(() => createStyles(colors, typography), [colors, typography]);
+
+  const steps: Step[] = useMemo(
+    () => [
+      ...QUIZ_QUESTIONS.map((q) => ({ kind: "trait" as const, id: q.id, prompt: q.prompt })),
+      ...ATTACHMENT_QUESTIONS.map((q) => ({ kind: "attachment" as const, id: q.id, prompt: q.prompt })),
+    ],
+    []
+  );
+
+  const [stepIndex, setStepIndex] = useState(0);
   const [traitAnswers, setTraitAnswers] = useState<Record<string, number>>({});
   const [attachmentAnswers, setAttachmentAnswers] = useState<Record<string, number>>({});
 
-  const allAnswered =
-    QUIZ_QUESTIONS.every((q) => traitAnswers[q.id] !== undefined) &&
-    ATTACHMENT_QUESTIONS.every((q) => attachmentAnswers[q.id] !== undefined);
+  const step = steps[stepIndex];
+  const isLast = stepIndex === steps.length - 1;
+  const currentValue =
+    step.kind === "trait" ? traitAnswers[step.id] : attachmentAnswers[step.id];
 
-  function handleSubmit() {
+  function finish(finalTraitAnswers: Record<string, number>, finalAttachmentAnswers: Record<string, number>) {
     const scores: BigFiveScores = {
       openness: 0,
       conscientiousness: 0,
@@ -48,7 +68,7 @@ export default function PersonalityQuizScreen({ navigation }: Props) {
     };
 
     for (const q of QUIZ_QUESTIONS) {
-      const raw = traitAnswers[q.id];
+      const raw = finalTraitAnswers[q.id];
       const value = q.reverseScored ? 6 - raw : raw;
       scores[q.trait] += value;
       counts[q.trait] += 1;
@@ -64,7 +84,7 @@ export default function PersonalityQuizScreen({ navigation }: Props) {
       fearful: 0,
     };
     for (const q of ATTACHMENT_QUESTIONS) {
-      attachmentTotals[q.style] += attachmentAnswers[q.id] ?? 0;
+      attachmentTotals[q.style] += finalAttachmentAnswers[q.id] ?? 0;
     }
     const attachmentStyle = (Object.keys(attachmentTotals) as AttachmentStyle[]).reduce((a, b) =>
       attachmentTotals[a] >= attachmentTotals[b] ? a : b
@@ -81,45 +101,58 @@ export default function PersonalityQuizScreen({ navigation }: Props) {
     savePersonalityBaseline(baseline).then(() => navigation.replace("Tabs"));
   }
 
+  function handleAnswer(value: number) {
+    let nextTraitAnswers = traitAnswers;
+    let nextAttachmentAnswers = attachmentAnswers;
+
+    if (step.kind === "trait") {
+      nextTraitAnswers = { ...traitAnswers, [step.id]: value };
+      setTraitAnswers(nextTraitAnswers);
+    } else {
+      nextAttachmentAnswers = { ...attachmentAnswers, [step.id]: value };
+      setAttachmentAnswers(nextAttachmentAnswers);
+    }
+
+    setTimeout(() => {
+      if (isLast) {
+        finish(nextTraitAnswers, nextAttachmentAnswers);
+      } else {
+        setStepIndex((i) => i + 1);
+      }
+    }, 220);
+  }
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>Know Thyself: Personality Baseline</Text>
-      <Text style={styles.subtitle}>
-        Rate how much each statement sounds like you, from 1 (not at all) to 5 (very much).
-      </Text>
+    <View style={styles.container}>
+      <View style={styles.progressWrap}>
+        <ProgressBar progress={(stepIndex + 1) / steps.length} />
+        <Text style={styles.progressLabel}>
+          {stepIndex + 1} of {steps.length}
+        </Text>
+      </View>
 
-      {QUIZ_QUESTIONS.map((q) => (
-        <View key={q.id} style={styles.questionBlock}>
-          <Text style={styles.question}>{q.prompt}</Text>
-          <LikertScale
-            value={traitAnswers[q.id]}
-            onChange={(v) => setTraitAnswers((prev) => ({ ...prev, [q.id]: v }))}
-          />
-        </View>
-      ))}
-
-      <Text style={styles.sectionTitle}>Closeness & Connection</Text>
-      {ATTACHMENT_QUESTIONS.map((q) => (
-        <View key={q.id} style={styles.questionBlock}>
-          <Text style={styles.question}>{q.prompt}</Text>
-          <LikertScale
-            value={attachmentAnswers[q.id]}
-            onChange={(v) => setAttachmentAnswers((prev) => ({ ...prev, [q.id]: v }))}
-          />
-        </View>
-      ))}
-
-      <Button label="See my baseline" onPress={handleSubmit} disabled={!allAnswered} />
-    </ScrollView>
+      <FadeIn key={step.id} style={styles.cardWrap}>
+        <Card>
+          <Text style={styles.sectionLabel}>
+            {step.kind === "attachment" ? "Closeness & connection" : "About you"}
+          </Text>
+          <Text style={styles.prompt}>{step.prompt}</Text>
+          <Text style={styles.scaleHint}>1 = not at all · 5 = very much</Text>
+          <LikertScale value={currentValue} onChange={handleAnswer} />
+        </Card>
+      </FadeIn>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 20, paddingBottom: 48 },
-  title: { fontSize: 22, fontWeight: "700", marginBottom: 8 },
-  subtitle: { fontSize: 14, color: "#555", marginBottom: 20 },
-  sectionTitle: { fontSize: 18, fontWeight: "600", marginTop: 12, marginBottom: 8 },
-  questionBlock: { marginBottom: 20 },
-  question: { fontSize: 15, marginBottom: 8 },
-});
+function createStyles(colors: ThemeColors, typography: Typography) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background, padding: spacing.xl },
+    progressWrap: { marginBottom: spacing.xl },
+    progressLabel: { ...typography.caption, marginTop: spacing.sm, textAlign: "right" },
+    cardWrap: { flex: 1, justifyContent: "center" },
+    sectionLabel: { ...typography.caption, color: colors.primary, marginBottom: spacing.sm },
+    prompt: { ...typography.heading, marginBottom: spacing.lg, lineHeight: 28 },
+    scaleHint: { ...typography.bodyMuted, marginBottom: spacing.lg },
+  });
+}

@@ -24,13 +24,12 @@ export async function saveDailySchedule(schedule: DailySchedule): Promise<void> 
   await writeJson(KEYS.dailySchedule, schedule);
 }
 
-export async function getScenarioSessions(): Promise<ScenarioSession[]> {
-  return readJson<ScenarioSession[]>(KEYS.scenarioSessions, []);
+export async function getScenarioSession(): Promise<ScenarioSession | null> {
+  return readJson<ScenarioSession | null>(KEYS.scenarioSessions, null);
 }
 
-export async function addScenarioSession(session: ScenarioSession): Promise<void> {
-  const sessions = await getScenarioSessions();
-  await writeJson(KEYS.scenarioSessions, [...sessions, session]);
+export async function saveScenarioSession(session: ScenarioSession): Promise<void> {
+  await writeJson(KEYS.scenarioSessions, session);
 }
 
 export async function getMoodEntries(): Promise<MoodEntry[]> {

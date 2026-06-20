@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./types";
 import MainTabs from "./MainTabs";
 import PersonalityQuizScreen from "../screens/PersonalityQuizScreen";
+import PersonalityResultScreen from "../screens/PersonalityResultScreen";
 import ScheduleSetupScreen from "../screens/ScheduleSetupScreen";
 import ScenarioScreen from "../screens/ScenarioScreen";
 import { useTheme } from "../theme";
@@ -41,6 +42,11 @@ export default function RootNavigator() {
           name="PersonalityQuiz"
           component={PersonalityQuizScreen}
           options={{ title: "Personality Quiz" }}
+        />
+        <Stack.Screen
+          name="PersonalityResult"
+          component={PersonalityResultScreen}
+          options={{ title: "Your Score", headerBackVisible: false }}
         />
         <Stack.Screen
           name="ScheduleSetup"

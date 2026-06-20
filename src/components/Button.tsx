@@ -42,6 +42,7 @@ function createStyles(colors: ThemeColors, typography: Typography) {
   return StyleSheet.create({
     base: {
       paddingVertical: 14,
+      paddingHorizontal: spacing.lg,
       borderRadius: radius.md,
       alignItems: "center",
       marginTop: spacing.sm,

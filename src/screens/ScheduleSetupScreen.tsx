@@ -1,14 +1,15 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { saveDailySchedule } from "../storage/repository";
+import { getDailySchedule, saveDailySchedule } from "../storage/repository";
 import type { DailySchedule, ScheduleBlock } from "../types";
 import type { RootStackParamList } from "../navigation/types";
+import { AnimatedPressable } from "../components/AnimatedPressable";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { FadeIn } from "../components/FadeIn";
-import { spacing, useTheme, ThemeColors, Typography } from "../theme";
+import { radius, spacing, useTheme, ThemeColors, Typography } from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ScheduleSetup">;
 
@@ -16,6 +17,8 @@ const DEFAULT_BLOCKS: ScheduleBlock[] = [
   { label: "Work / study", startTime: "09:00", endTime: "17:00" },
   { label: "Wind down", startTime: "20:00", endTime: "22:00" },
 ];
+
+const EMPTY_BLOCK: ScheduleBlock = { label: "", startTime: "", endTime: "" };
 
 export default function ScheduleSetupScreen({ navigation }: Props) {
   const { colors, typography } = useTheme();
@@ -25,8 +28,26 @@ export default function ScheduleSetupScreen({ navigation }: Props) {
   const [sleepTime, setSleepTime] = useState("23:00");
   const [blocks, setBlocks] = useState<ScheduleBlock[]>(DEFAULT_BLOCKS);
 
+  useEffect(() => {
+    getDailySchedule().then((existing) => {
+      if (existing) {
+        setWakeTime(existing.wakeTime);
+        setSleepTime(existing.sleepTime);
+        setBlocks(existing.blocks);
+      }
+    });
+  }, []);
+
   function updateBlock(index: number, field: keyof ScheduleBlock, value: string) {
     setBlocks((prev) => prev.map((b, i) => (i === index ? { ...b, [field]: value } : b)));
+  }
+
+  function addBlock() {
+    setBlocks((prev) => [...prev, { ...EMPTY_BLOCK }]);
+  }
+
+  function removeBlock(index: number) {
+    setBlocks((prev) => prev.filter((_, i) => i !== index));
   }
 
   function handleSave() {
@@ -83,17 +104,29 @@ export default function ScheduleSetupScreen({ navigation }: Props) {
         </Card>
       </FadeIn>
 
-      <Text style={styles.sectionTitle}>Recurring blocks</Text>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={styles.sectionTitle}>Recurring blocks</Text>
+        <AnimatedPressable onPress={addBlock} style={styles.addBlockButton}>
+          <Ionicons name="add" size={16} color={colors.primary} />
+          <Text style={styles.addBlockLabel}>Add block</Text>
+        </AnimatedPressable>
+      </View>
+
       {blocks.map((block, i) => (
         <FadeIn key={i} delay={120 + i * 60}>
           <Card style={styles.card} muted>
-            <TextInput
-              style={[styles.input, styles.blockLabelInput]}
-              value={block.label}
-              onChangeText={(v) => updateBlock(i, "label", v)}
-              placeholder="Label"
-              placeholderTextColor={colors.textMuted}
-            />
+            <View style={styles.blockHeaderRow}>
+              <TextInput
+                style={[styles.input, styles.blockLabelInput]}
+                value={block.label}
+                onChangeText={(v) => updateBlock(i, "label", v)}
+                placeholder="Label"
+                placeholderTextColor={colors.textMuted}
+              />
+              <AnimatedPressable onPress={() => removeBlock(i)} style={styles.removeButton}>
+                <Ionicons name="trash-outline" size={16} color={colors.danger} />
+              </AnimatedPressable>
+            </View>
             <View style={styles.row}>
               <TextInput
                 style={[styles.input, styles.blockTimeInput]}
@@ -114,6 +147,10 @@ export default function ScheduleSetupScreen({ navigation }: Props) {
         </FadeIn>
       ))}
 
+      {blocks.length === 0 && (
+        <Text style={styles.emptyBlocksText}>No recurring blocks yet — add one above.</Text>
+      )}
+
       <Button label="Save my day structure" onPress={handleSave} />
     </ScrollView>
   );
@@ -125,7 +162,24 @@ function createStyles(colors: ThemeColors, typography: Typography) {
     content: { padding: spacing.xl, paddingBottom: spacing.xxxl },
     title: { ...typography.title, marginBottom: spacing.sm },
     subtitle: { ...typography.bodyMuted, marginBottom: spacing.xl },
-    sectionTitle: { ...typography.heading, marginTop: spacing.lg, marginBottom: spacing.md },
+    sectionHeaderRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: spacing.lg,
+      marginBottom: spacing.md,
+    },
+    sectionTitle: { ...typography.heading },
+    addBlockButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing.xs,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+      borderRadius: radius.pill,
+      backgroundColor: colors.primaryLight,
+    },
+    addBlockLabel: { fontSize: 13, fontWeight: "600", color: colors.primary },
     card: { marginBottom: spacing.md },
     row: { flexDirection: "row", gap: spacing.md },
     timeField: { flex: 1 },
@@ -146,7 +200,17 @@ function createStyles(colors: ThemeColors, typography: Typography) {
       backgroundColor: colors.surface,
       color: colors.textPrimary,
     },
-    blockLabelInput: { marginBottom: spacing.sm },
+    blockHeaderRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
+    blockLabelInput: { flex: 1 },
     blockTimeInput: { flex: 1 },
+    removeButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.surface,
+    },
+    emptyBlocksText: { ...typography.bodyMuted, textAlign: "center", marginBottom: spacing.lg },
   });
 }

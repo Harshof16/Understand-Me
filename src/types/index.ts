@@ -65,6 +65,13 @@ export type JournalEntry = {
   id: string;
   timestamp: string;
   text: string;
+  moodPrimary?: string;
+  prompt?: string;
+};
+
+export type ProfileAttribute = {
+  label: string;
+  detail: string;
 };
 
 export type InsightSnapshot = {
@@ -72,5 +79,8 @@ export type InsightSnapshot = {
   periodStart: string;
   periodEnd: string;
   summaryText: string;
+  attributes: ProfileAttribute[];
+  painPoints: string[];
+  productiveWindows: string[];
   generatedAt: string;
 };

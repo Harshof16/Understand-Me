@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { ATTACHMENT_QUESTIONS, QUIZ_QUESTIONS } from "../data/quizQuestions";
 import { savePersonalityBaseline } from "../storage/repository";
 import type { AttachmentStyle, BigFiveScores, PersonalityBaseline } from "../types";
 import type { RootStackParamList } from "../navigation/types";
+import { AnimatedPressable } from "../components/AnimatedPressable";
 import { Card } from "../components/Card";
 import { FadeIn } from "../components/FadeIn";
 import { LikertScale } from "../components/LikertScale";
@@ -98,7 +100,9 @@ export default function PersonalityQuizScreen({ navigation }: Props) {
       takenAt: new Date().toISOString(),
     };
 
-    savePersonalityBaseline(baseline).then(() => navigation.replace("Tabs"));
+    savePersonalityBaseline(baseline).then(() =>
+      navigation.replace("PersonalityResult", { baseline })
+    );
   }
 
   function handleAnswer(value: number) {
@@ -122,13 +126,27 @@ export default function PersonalityQuizScreen({ navigation }: Props) {
     }, 220);
   }
 
+  function handleBack() {
+    setStepIndex((i) => Math.max(0, i - 1));
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.progressWrap}>
         <ProgressBar progress={(stepIndex + 1) / steps.length} />
-        <Text style={styles.progressLabel}>
-          {stepIndex + 1} of {steps.length}
-        </Text>
+        <View style={styles.progressFooter}>
+          <AnimatedPressable
+            onPress={handleBack}
+            disabled={stepIndex === 0}
+            style={[styles.backButton, stepIndex === 0 && styles.backButtonDisabled]}
+          >
+            <Ionicons name="chevron-back" size={16} color={colors.primary} />
+            <Text style={styles.backLabel}>Back</Text>
+          </AnimatedPressable>
+          <Text style={styles.progressLabel}>
+            {stepIndex + 1} of {steps.length}
+          </Text>
+        </View>
       </View>
 
       <FadeIn key={step.id} style={styles.cardWrap}>
@@ -149,7 +167,16 @@ function createStyles(colors: ThemeColors, typography: Typography) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background, padding: spacing.xl },
     progressWrap: { marginBottom: spacing.xl },
-    progressLabel: { ...typography.caption, marginTop: spacing.sm, textAlign: "right" },
+    progressFooter: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      marginTop: spacing.sm,
+    },
+    backButton: { flexDirection: "row", alignItems: "center", gap: 2 },
+    backButtonDisabled: { opacity: 0.3 },
+    backLabel: { fontSize: 13, fontWeight: "600", color: colors.primary },
+    progressLabel: { ...typography.caption },
     cardWrap: { flex: 1, justifyContent: "center" },
     sectionLabel: { ...typography.caption, color: colors.primary, marginBottom: spacing.sm },
     prompt: { ...typography.heading, marginBottom: spacing.lg, lineHeight: 28 },
